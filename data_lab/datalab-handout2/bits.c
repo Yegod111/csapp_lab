@@ -316,7 +316,7 @@ int floatFloat2Int(unsigned uf) {
 		return 0;
 	}
 	if (uf & min) {
-		if ((((0x4f << 24) | ((1 << 25) - 1)) - (uf & max)) & min) {
+		if ((((0x4f << 24) | ((1 << 24) - 1)) - (uf & max)) & min) {
 			return min; 
 		}
 		int exp = ((uf >> 23) & 0xff) - 127;
@@ -325,7 +325,7 @@ int floatFloat2Int(unsigned uf) {
 		}
 		return -((1 << exp) + ((uf & (max >> 8)) >> (23 - exp)));
 	}
-	if ((((0x4e << 24) | ((1 << 25) - 1)) - uf) & min) { 	
+	if ((((0x4e << 24) | ((1 << 24) - 1)) - uf) & min) { 	
 		return min;         
         }
 	int exp = ((uf >> 23) & 0xff) - 127;
