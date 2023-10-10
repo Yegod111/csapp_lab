@@ -152,7 +152,7 @@ int bitXor(int x, int y) {
  *   Rating: 1
  */
 int tmin(void) {
-	return 0x80000000;
+	return 1 << 31;
 }
 //2
 /*
@@ -163,7 +163,7 @@ int tmin(void) {
  *   Rating: 1
  */
 int isTmax(int x) {
-	return !(x ^ 0x7fffffff);
+	return !(x ^ ~(1 << 31));
 }
 /* 
  * allOddBits - return 1 if all odd-numbered bits in word set to 1
@@ -174,7 +174,10 @@ int isTmax(int x) {
  *   Rating: 2
  */
 int allOddBits(int x) {
-	return !((x & 0xaaaaaaaa) ^ 0xaaaaaaaa);
+	int mask = 0xaa;
+	mask = mask | (mask << 8);
+	mask = mask | (mask << 16);
+	return !((x & mask) ^ mask);
 }
 /* 
  * negate - return -x 
@@ -231,7 +234,7 @@ int isLessOrEqual(int x, int y) {
  *   Rating: 4 
  */
 int logicalNeg(int x) {
-	return (((x >> 31) & 1) ^ 1) & ((((x + 0x7fffffff) >> 31) & 1) ^ 1); 
+	return (((x >> 31) & 1) ^ 1) & ((((x + ~(1 << 31)) >> 31) & 1) ^ 1); 
 }
 /* howManyBits - return the minimum number of bits required to represent x in
  *             two's complement
@@ -246,26 +249,26 @@ int logicalNeg(int x) {
  *  Rating: 4
  */
 int howManyBits(int x) {
-	int mask = !!(x & 0x80000000) << 31 >> 31;
+	int mask = x >> 31; 
 	int ans = 1;
 	int val;
 	x = (mask & ~x) + (~mask & x);
-	val = (!!(x & 0xffff0000) << 31 >> 31) & 16;
+	val = (!!(x & ((0xff << 24) | (0xff << 16))) << 31 >> 31) & 16;
 	ans = ans + val;
 	x >>= val;
-	val = (!!(x & 0x0000ff00) << 31 >> 31) & 8;
+	val = (!!(x & (0xff << 8)) << 31 >> 31) & 8;
 	ans = ans + val;
 	x >>= val;
-	val = (!!(x & 0x000000f0) << 31 >> 31) & 4;
+	val = (!!(x & 0xf0) << 31 >> 31) & 4;
 	ans = ans + val;
 	x >>= val;
-	val = (!!(x & 0x0000000c) << 31 >> 31) & 2;
+	val = (!!(x & 0xc) << 31 >> 31) & 2;
 	ans = ans + val;
 	x >>= val;
-	val = (!!(x & 0x00000002) << 31 >> 31) & 1;
+	val = (!!(x & 0x2) << 31 >> 31) & 1;
 	ans = ans + val;
 	x >>= val;
-	ans = ans + (x & 0x00000001);
+	ans = ans + (x & 0x1);
 	return ans;
 }
 //float
@@ -281,16 +284,17 @@ int howManyBits(int x) {
  *   Rating: 4
  */
 unsigned floatScale2(unsigned uf) {
-	if (!uf || !((uf & 0x7f800000) ^ 0x7f800000)) {
+	unsigned inf = 0xff << 23;
+	if (!uf || !((uf & inf) ^ inf)) {
 		return uf;
 	}
-	if (!((uf & 0x7f000000) ^ 0x7f000000)) {
-		return uf | 0x7f800000;
+	if (!((uf & (0x7f << 24)) ^ (0x7f << 24))) {
+		return uf | inf; 
 	}
-	if (!(uf & 0x7f800000)) {
-		return (uf & 0xff000000) | ((uf & 0x007fffff) << 1);
+	if (!(uf & inf)) {
+		return (uf & (0xff << 24)) | ((uf & (~(1 << 31) >> 8)) << 1);
 	}
-	return uf + 0x00800000; 
+	return uf + (1 << 23); 
 }
 /* 
  * floatFloat2Int - Return bit-level equivalent of expression (int) f
@@ -305,27 +309,30 @@ unsigned floatScale2(unsigned uf) {
  *   Rating: 4
  */
 int floatFloat2Int(unsigned uf) {
-	if (((uf & 0x7fffffff) - 0x3f800000) & 0x80000000) {
+	unsigned half_inf = 0x7f << 23;
+	unsigned min = 1 << 31;
+	unsigned max = ~min; 
+	if (((uf & max) - half_inf) & min) {
 		return 0;
 	}
-	if (uf & 0x80000000) {
-		if ((0x4f000000 - (uf & 0x7fffffff)) & 0x80000000) {
-			return 0x80000000;
+	if (uf & min) {
+		if ((((0x4f << 24) | ((1 << 25) - 1)) - (uf & max)) & min) {
+			return min; 
 		}
 		int exp = ((uf >> 23) & 0xff) - 127;
-		if (!((exp - 23) & 0x80000000)) {
-			return -((1 << exp) + ((uf & 0x007fffff) << (exp - 23))); 
+		if (!((exp - 23) & min)) {
+			return -((1 << exp) + ((uf & (max >> 8)) << (exp - 23))); 
 		}
-		return -((1 << exp) + ((uf & 0x007fffff) >> (23 - exp)));
+		return -((1 << exp) + ((uf & (max >> 8)) >> (23 - exp)));
 	}
-	if ((0x4effffff - uf) & 0x80000000) { 	
-		return 0x80000000;         
+	if ((((0x4e << 24) | ((1 << 25) - 1)) - uf) & min) { 	
+		return min;         
         }
 	int exp = ((uf >> 23) & 0xff) - 127;
-	if (!((exp - 23) & 0x80000000)) {
-		return (1 << exp) + ((uf & 0x007fffff) << (exp - 23));
+	if (!((exp - 23) & min)) {
+		return (1 << exp) + ((uf & (max >> 8)) << (exp - 23));
 	}
-	return (1 << exp) + ((uf & 0x007fffff) >> (23 - exp));
+	return (1 << exp) + ((uf & (max >> 8)) >> (23 - exp));
 }
 /* 
  * floatPower2 - Return bit-level equivalent of the expression 2.0^x
@@ -341,17 +348,17 @@ int floatFloat2Int(unsigned uf) {
  *   Rating: 4
  */
 unsigned floatPower2(int x) {
-	if (x & 0x80000000) {
-		if ((x + 149) & 0x80000000) {
+	if (x >> 31) {
+		if ((x + 149) >> 31) {
 			return 0;
 		}
-		if ((x + 126) & 0x80000000) {
+		if ((x + 126) >> 31) {
 			return 1 << (x + 149);
 		}
 		return (x + 127) << 23;
 	}
-	if (!((x - 128) & 0x80000000)) {
-		return 0x7f800000;
+	if (!((x - 128) >> 31)) {
+		return 0xff << 23;
 	}
 	return (x + 127) << 23; 
 }
