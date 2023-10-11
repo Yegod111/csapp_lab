@@ -163,7 +163,7 @@ int tmin(void) {
  *   Rating: 1
  */
 int isTmax(int x) {
-	return !(x ^ ~(1 << 31));
+	return !(x ^ ~(x + 1)) & !!(~x);
 }
 /* 
  * allOddBits - return 1 if all odd-numbered bits in word set to 1
@@ -309,30 +309,35 @@ unsigned floatScale2(unsigned uf) {
  *   Rating: 4
  */
 int floatFloat2Int(unsigned uf) {
-	unsigned half_inf = 0x7f << 23;
 	unsigned min = 1 << 31;
 	unsigned max = ~min; 
-	if (((uf & max) - half_inf) & min) {
+	unsigned norm = uf & max;
+	int exp;
+	int fraction;
+	int offset;
+	int ans;
+	int sign;
+	if ((norm - (0x7f << 23)) & min) {
 		return 0;
 	}
+	if (!((norm - (0x9e << 23)) & min)) {
+		return min;
+	}
+	exp = ((uf >> 23) & 0xff) - 127;
+	fraction = uf & (max >> 8);
+	offset = exp - 23;
+	ans = 1 << exp;
+	sign = offset & min;
+	if (sign) {
+		ans = ans + (fraction >> -offset);
+	}
+	if (!sign) {
+		ans = ans + (fraction << offset);
+	}
 	if (uf & min) {
-		if ((((0x4f << 24) | ((1 << 24) - 1)) - (uf & max)) & min) {
-			return min; 
-		}
-		int exp = ((uf >> 23) & 0xff) - 127;
-		if (!((exp - 23) & min)) {
-			return -((1 << exp) + ((uf & (max >> 8)) << (exp - 23))); 
-		}
-		return -((1 << exp) + ((uf & (max >> 8)) >> (23 - exp)));
+		return -ans;
 	}
-	if ((((0x4e << 24) | ((1 << 24) - 1)) - uf) & min) { 	
-		return min;         
-        }
-	int exp = ((uf >> 23) & 0xff) - 127;
-	if (!((exp - 23) & min)) {
-		return (1 << exp) + ((uf & (max >> 8)) << (exp - 23));
-	}
-	return (1 << exp) + ((uf & (max >> 8)) >> (23 - exp));
+	return ans;
 }
 /* 
  * floatPower2 - Return bit-level equivalent of the expression 2.0^x
